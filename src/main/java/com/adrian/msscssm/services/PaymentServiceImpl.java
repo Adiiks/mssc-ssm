@@ -21,6 +21,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final StateMachineFactory<PaymentState, PaymentEvent> stateMachineFactory;
+    private final PaymentStateChangeInterceptor paymentStateChangeInterceptor;
 
     @Override
     public Payment createNewPayment(Payment payment) {
@@ -74,6 +75,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         stateMachine.getStateMachineAccessor()
                 .doWithAllRegions(sma -> {
+                    sma.addStateMachineInterceptor(paymentStateChangeInterceptor);
                     sma.resetStateMachineReactively(new DefaultStateMachineContext<>(payment.getState(), null,
                             null, null)).block();
                 });
