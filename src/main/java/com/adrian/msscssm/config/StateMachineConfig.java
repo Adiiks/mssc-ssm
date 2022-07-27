@@ -2,10 +2,9 @@ package com.adrian.msscssm.config;
 
 import com.adrian.msscssm.domain.PaymentEvent;
 import com.adrian.msscssm.domain.PaymentState;
-import com.adrian.msscssm.services.PaymentServiceImpl;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.statemachine.action.Action;
 import org.springframework.statemachine.config.EnableStateMachineFactory;
 import org.springframework.statemachine.config.StateMachineConfigurerAdapter;
@@ -15,15 +14,23 @@ import org.springframework.statemachine.config.builders.StateMachineTransitionCo
 import org.springframework.statemachine.guard.Guard;
 import org.springframework.statemachine.listener.StateMachineListenerAdapter;
 import org.springframework.statemachine.state.State;
-import reactor.core.publisher.Mono;
 
 import java.util.EnumSet;
-import java.util.Random;
 
 @Slf4j
+@RequiredArgsConstructor
 @EnableStateMachineFactory
 @Configuration
 public class StateMachineConfig extends StateMachineConfigurerAdapter<PaymentState, PaymentEvent> {
+
+    private final Guard<PaymentState, PaymentEvent> paymentIdGuard;
+
+    private final Action<PaymentState, PaymentEvent> authAction;
+    private final Action<PaymentState, PaymentEvent>  authApproved;
+    private final Action<PaymentState, PaymentEvent>  authDeclined;
+    private final Action<PaymentState, PaymentEvent>  preAuthAction;
+    private final Action<PaymentState, PaymentEvent>  preAuthApproved;
+    private final Action<PaymentState, PaymentEvent>  preAuthDeclined;
 
     @Override
     public void configure(StateMachineStateConfigurer<PaymentState, PaymentEvent> states) throws Exception {
@@ -38,18 +45,22 @@ public class StateMachineConfig extends StateMachineConfigurerAdapter<PaymentSta
     @Override
     public void configure(StateMachineTransitionConfigurer<PaymentState, PaymentEvent> transitions) throws Exception {
         transitions.withExternal().source(PaymentState.NEW).target(PaymentState.NEW).event(PaymentEvent.PRE_AUTHORIZE)
-                    .action(preAuthAction()).guard(paymentIdGuard())
+                    .action(preAuthAction).guard(paymentIdGuard)
                 .and()
                 .withExternal().source(PaymentState.NEW).target(PaymentState.PRE_AUTH).event(PaymentEvent.PRE_AUTH_APPROVED)
+                    .action(preAuthApproved)
                 .and()
                 .withExternal().source(PaymentState.NEW).target(PaymentState.PRE_AUTH_ERROR).event(PaymentEvent.PRE_AUTH_DECLINED)
+                    .action(preAuthDeclined)
                 .and()
                 .withExternal().source(PaymentState.PRE_AUTH).target(PaymentState.PRE_AUTH).event(PaymentEvent.AUTHORIZE)
-                    .action(authAction())
+                    .action(authAction)
                 .and()
                 .withExternal().source(PaymentState.PRE_AUTH).target(PaymentState.AUTH).event(PaymentEvent.AUTH_APPROVED)
+                    .action(authApproved)
                 .and()
-                .withExternal().source(PaymentState.PRE_AUTH).target(PaymentState.AUTH_ERROR).event(PaymentEvent.AUTH_DECLINED);
+                .withExternal().source(PaymentState.PRE_AUTH).target(PaymentState.AUTH_ERROR).event(PaymentEvent.AUTH_DECLINED)
+                    .action(authDeclined);
     }
 
     @Override
@@ -62,53 +73,5 @@ public class StateMachineConfig extends StateMachineConfigurerAdapter<PaymentSta
         };
 
         config.withConfiguration().listener(adapter);
-    }
-
-    private Guard<PaymentState, PaymentEvent> paymentIdGuard() {
-        return context -> context.getMessageHeader(PaymentServiceImpl.PAYMENT_ID_HEADER) != null;
-    }
-
-    private Action<PaymentState, PaymentEvent> preAuthAction() {
-        return context -> {
-            System.out.println("Pre Auth was called");
-
-            if (new Random().nextInt(10) < 8) {
-                System.out.println("Approved !!!");
-                context.getStateMachine()
-                        .sendEvent(Mono.just(MessageBuilder.withPayload(PaymentEvent.PRE_AUTH_APPROVED)
-                                .setHeader(PaymentServiceImpl.PAYMENT_ID_HEADER, context.getMessageHeader(PaymentServiceImpl.PAYMENT_ID_HEADER))
-                                .build()))
-                        .blockFirst();
-            } else {
-                System.out.println("Declined !!!");
-                context.getStateMachine()
-                        .sendEvent(Mono.just(MessageBuilder.withPayload(PaymentEvent.PRE_AUTH_DECLINED)
-                                .setHeader(PaymentServiceImpl.PAYMENT_ID_HEADER, context.getMessageHeader(PaymentServiceImpl.PAYMENT_ID_HEADER))
-                                .build()))
-                        .blockFirst();
-            }
-        };
-    }
-
-    private Action<PaymentState, PaymentEvent> authAction() {
-        return context -> {
-            System.out.println("Auth was called");
-
-            if (new Random().nextInt(10) < 8) {
-                System.out.println("Approved !!!");
-                context.getStateMachine()
-                        .sendEvent(Mono.just(MessageBuilder.withPayload(PaymentEvent.AUTH_APPROVED)
-                                .setHeader(PaymentServiceImpl.PAYMENT_ID_HEADER, context.getMessageHeader(PaymentServiceImpl.PAYMENT_ID_HEADER))
-                                .build()))
-                        .blockFirst();
-            } else {
-                System.out.println("Declined !!!");
-                context.getStateMachine()
-                        .sendEvent(Mono.just(MessageBuilder.withPayload(PaymentEvent.AUTH_DECLINED)
-                                .setHeader(PaymentServiceImpl.PAYMENT_ID_HEADER, context.getMessageHeader(PaymentServiceImpl.PAYMENT_ID_HEADER))
-                                .build()))
-                        .blockFirst();
-            }
-        };
     }
 }
