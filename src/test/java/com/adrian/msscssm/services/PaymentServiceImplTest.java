@@ -39,4 +39,17 @@ class PaymentServiceImplTest {
 
         System.out.println(preAuthPayment);
     }
+
+    @Transactional
+    @Test
+    void authorize() {
+        Payment savedPayment = paymentService.createNewPayment(payment);
+
+        paymentService.preAuth(savedPayment.getId());
+        paymentService.authorizePayment(savedPayment.getId());
+
+        Payment authPayment = paymentRepository.getReferenceById(savedPayment.getId());
+
+        System.out.println(authPayment);
+    }
 }
